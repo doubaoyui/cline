@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Adding basic mutli root algorithm
+Adding basic multi root algorithm
