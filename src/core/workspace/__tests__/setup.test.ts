@@ -106,14 +106,10 @@ describe("setupWorkspaceManager", () => {
 		// telemetry captured (skipped assertion in unit tests)
 	})
 
-	it("restores from saved roots in single-root mode when historyItem present", async () => {
+	it("uses single-root cwd when history restore is disabled (historyItem present)", async () => {
 		const savedRoots: WorkspaceRoot[] = [{ path: "/saved/root", name: "saved", vcs: VcsType.None }]
-		const stateManager = makeStateManager({
-			multiRootEnabled: false,
-			savedRoots,
-			savedPrimaryIndex: 0,
-		})
-		const detectRoots = sandbox.stub().resolves(defaultRoots) // should not be used in single-root restore path
+		const stateManager = makeStateManager({ multiRootEnabled: false, savedRoots, savedPrimaryIndex: 0 })
+		const detectRoots = sandbox.stub().resolves(defaultRoots) // not used
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
@@ -123,11 +119,11 @@ describe("setupWorkspaceManager", () => {
 
 		// detectRoots not used
 		expect(detectRoots.called).to.equal(false)
-		// restored roots used
+		// current design: single-root path uses cwd (stubbed earlier to "/Users/test/project")
 		expect(manager.getRoots()).to.have.length(1)
-		expect(manager.getRoots()[0].path).to.equal("/saved/root")
+		expect(manager.getRoots()[0].path).to.equal(cwd)
 		// state persisted
-		expect(stateManager._state.roots?.[0].path).to.equal("/saved/root")
+		expect(stateManager._state.roots?.[0].path).to.equal(cwd)
 	})
 
 	it("falls back to fromLegacyCwd in single-root mode when no saved state", async () => {

@@ -16,7 +16,6 @@ type DetectRoots = () => Promise<WorkspaceRoot[]>
  */
 export async function setupWorkspaceManager({
 	stateManager,
-	historyItem,
 	detectRoots,
 }: {
 	stateManager: {
@@ -35,6 +34,7 @@ export async function setupWorkspaceManager({
 
 	try {
 		let manager: WorkspaceRootManager
+		// Multi-root mode condition which is always false for now as isMultiRootEnabled is hardcoded to false
 		if (multiRootEnabled) {
 			// Multi-root: detect workspace folders
 			const roots = await detectRoots()
@@ -55,37 +55,37 @@ export async function setupWorkspaceManager({
 			return manager
 		}
 
-		// Single-root mode
-		if (historyItem) {
-			const savedRoots = stateManager.getWorkspaceRoots()
-			if (savedRoots && savedRoots.length > 0) {
-				const primaryIndex = stateManager.getPrimaryRootIndex()
-				manager = new WorkspaceRootManager(savedRoots, primaryIndex)
-				console.log(`[WorkspaceManager] Restored ${savedRoots.length} roots from state`)
-				telemetryService.captureWorkspaceInitialized(
-					savedRoots.length,
-					savedRoots.map((r) => r.vcs.toString()),
-					performance.now() - startTime,
-					false,
-				)
-			} else {
-				manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
-				telemetryService.captureWorkspaceInitialized(
-					1,
-					[manager.getRoots()[0].vcs.toString()],
-					performance.now() - startTime,
-					false,
-				)
-			}
-		} else {
-			manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
-			telemetryService.captureWorkspaceInitialized(
-				1,
-				[manager.getRoots()[0].vcs.toString()],
-				performance.now() - startTime,
-				false,
-			)
-		}
+		// Single-root mode code for when we actually start using workspacerootmanager
+		// if (historyItem) {
+		// 	const savedRoots = stateManager.getWorkspaceRoots()
+		// 	if (savedRoots && savedRoots.length > 0) {
+		// 		const primaryIndex = stateManager.getPrimaryRootIndex()
+		// 		manager = new WorkspaceRootManager(savedRoots, primaryIndex)
+		// 		console.log(`[WorkspaceManager] Restored ${savedRoots.length} roots from state`)
+		// 		telemetryService.captureWorkspaceInitialized(
+		// 			savedRoots.length,
+		// 			savedRoots.map((r) => r.vcs.toString()),
+		// 			performance.now() - startTime,
+		// 			false,
+		// 		)
+		// 	} else {
+		// 		manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
+		// 		telemetryService.captureWorkspaceInitialized(
+		// 			1,
+		// 			[manager.getRoots()[0].vcs.toString()],
+		// 			performance.now() - startTime,
+		// 			false,
+		// 		)
+		// 	}
+		// }
+
+		manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
+		telemetryService.captureWorkspaceInitialized(
+			1,
+			[manager.getRoots()[0].vcs.toString()],
+			performance.now() - startTime,
+			false,
+		)
 
 		console.log(`[WorkspaceManager] Single-root mode: ${cwd}`)
 		stateManager.setWorkspaceRoots(manager.getRoots())

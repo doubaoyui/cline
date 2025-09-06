@@ -224,7 +224,6 @@ export class Controller {
 		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
 		this.workspaceManager = await setupWorkspaceManager({
 			stateManager: this.stateManager,
-			historyItem,
 			detectRoots: detectWorkspaceRoots,
 		})
 
