@@ -181,6 +181,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	getDefaultShell() {
 		if (process.platform === "win32") {
+			// Honor COMSPEC so the host can force a specific shell (e.g., BusyBox)
 			return process.env.COMSPEC || "cmd.exe"
 		} else {
 			return process.env.SHELL || "/bin/bash"
@@ -189,7 +190,13 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	getShellArgs(shell, command) {
 		if (process.platform === "win32") {
-			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
+			const lower = String(shell).toLowerCase()
+			// If COMSPEC (or provided shell) points to BusyBox on Windows,
+			// invoke the POSIX sh applet with -c so commands like `ls` work.
+			if (lower.includes("busybox")) {
+				return ["sh", "-c", command]
+			}
+			if (lower.includes("powershell") || lower.includes("pwsh")) {
 				return ["-Command", command]
 			} else {
 				return ["/c", command]
