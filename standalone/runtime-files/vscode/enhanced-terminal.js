@@ -181,7 +181,12 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	getDefaultShell() {
 		if (process.platform === "win32") {
-			// Honor COMSPEC so the host can force a specific shell (e.g., BusyBox)
+			// Prefer an explicit shell hint from the host app
+			// (Rust sets CLINE_TERMINAL_SHELL to BusyBox on Windows).
+			if (process.env.CLINE_TERMINAL_SHELL && String(process.env.CLINE_TERMINAL_SHELL).length > 0) {
+				return process.env.CLINE_TERMINAL_SHELL
+			}
+			// Otherwise, fall back to COMSPEC or cmd.exe
 			return process.env.COMSPEC || "cmd.exe"
 		} else {
 			return process.env.SHELL || "/bin/bash"
@@ -191,8 +196,8 @@ class StandaloneTerminalProcess extends EventEmitter {
 	getShellArgs(shell, command) {
 		if (process.platform === "win32") {
 			const lower = String(shell).toLowerCase()
-			// If COMSPEC (or provided shell) points to BusyBox on Windows,
-			// invoke the POSIX sh applet with -c so commands like `ls` work.
+			// If shell points to BusyBox on Windows, run its `sh -c` applet explicitly.
+			// Calling busybox.exe with just "-c" will be treated as an applet name (and fail).
 			if (lower.includes("busybox")) {
 				return ["sh", "-c", command]
 			}
@@ -413,10 +418,15 @@ class StandaloneTerminalManager {
 			}
 		}
 
-		// Create new terminal
+		// Create new terminal. If host hinted a shell, pass it through so
+		// we don't fall back to COMSPEC when spawning.
+		const hintedShell = process.env.CLINE_TERMINAL_SHELL && String(process.env.CLINE_TERMINAL_SHELL).length > 0
+			? process.env.CLINE_TERMINAL_SHELL
+			: undefined
 		const newTerminalInfo = this.registry.createTerminal({
 			cwd: cwd,
 			name: `Cline Terminal ${this.registry.nextId}`,
+			shellPath: hintedShell,
 		})
 		this.terminalIds.add(newTerminalInfo.id)
 		console.log(`[StandaloneTerminalManager] Created new terminal ${newTerminalInfo.id}`)

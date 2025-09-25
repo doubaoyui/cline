@@ -60,10 +60,12 @@ vscode.window = {
 		}
 
 		// Use our enhanced terminal manager to create a terminal
+		// Prefer explicit shellPath; else honor host-provided CLINE_TERMINAL_SHELL
+		const effectiveShellPath = options.shellPath || process.env.CLINE_TERMINAL_SHELL
 		const terminalInfo = globalTerminalManager.registry.createTerminal({
 			name: options.name || `Terminal ${Date.now()}`,
 			cwd: options.cwd || process.cwd(),
-			shellPath: options.shellPath,
+			shellPath: effectiveShellPath,
 		})
 
 		// Store reference for tracking
