@@ -12,7 +12,7 @@ import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -26,11 +26,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	constructor(private validator: ToolValidator) {}
 
 	getDescription(block: ToolUse): string {
-		return `[${block.name} for '${block.params.path}']`
+		return `[${block.name} for '${block.params.path || block.params.absolutePath}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
@@ -54,7 +54,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
-				path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
+				path: getReadablePath(
+					config.cwd,
+					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
+				),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
@@ -85,7 +88,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
@@ -93,7 +96,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (!rawRelPath) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(
+				block.name,
+				block.params.absolutePath ? "absolutePath" : "path",
+			)
 		}
 
 		if (block.name === "replace_in_file" && !rawDiff) {
@@ -161,7 +167,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Auto-approval flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
 
 				// Capture telemetry
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
@@ -173,11 +178,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFile.notification")}`
 
 				// Show notification
-				showNotificationForApprovalIfAutoApprovalEnabled(
-					notificationMessage,
-					config.autoApprovalSettings.enabled,
-					config.autoApprovalSettings.enableNotifications,
-				)
+				showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
@@ -346,6 +347,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.didAlreadyUseTool = true
 				},
 				config.coordinator,
+				config.taskState.toolUseIdMap,
 			)
 			return
 		}
@@ -411,6 +413,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						config.taskState.didAlreadyUseTool = true
 					},
 					config.coordinator,
+					config.taskState.toolUseIdMap,
 				)
 
 				// Revert changes and reset diff view
