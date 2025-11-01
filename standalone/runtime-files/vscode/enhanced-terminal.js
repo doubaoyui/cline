@@ -181,6 +181,10 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	getDefaultShell() {
 		if (process.platform === "win32") {
+			// Allow the host app to override the shell (used for BusyBox on Windows)
+			if (process.env.CLINE_TERMINAL_SHELL && String(process.env.CLINE_TERMINAL_SHELL).length > 0) {
+				return process.env.CLINE_TERMINAL_SHELL
+			}
 			return process.env.COMSPEC || "cmd.exe"
 		} else {
 			return process.env.SHELL || "/bin/bash"
@@ -189,7 +193,14 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	getShellArgs(shell, command) {
 		if (process.platform === "win32") {
-			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
+			const lower = String(shell).toLowerCase()
+
+			// BusyBox requires invoking an applet explicitly otherwise "-c" is treated as applet name.
+			if (lower.includes("busybox")) {
+				return ["sh", "-c", command]
+			}
+
+			if (lower.includes("powershell") || lower.includes("pwsh")) {
 				return ["-Command", command]
 			} else {
 				return ["/c", command]
@@ -408,9 +419,14 @@ class StandaloneTerminalManager {
 		}
 
 		// Create new terminal
+		const hintedShell =
+			process.env.CLINE_TERMINAL_SHELL && String(process.env.CLINE_TERMINAL_SHELL).length > 0
+				? process.env.CLINE_TERMINAL_SHELL
+				: undefined
 		const newTerminalInfo = this.registry.createTerminal({
 			cwd: cwd,
 			name: `Cline Terminal ${this.registry.nextId}`,
+			shellPath: hintedShell,
 		})
 		this.terminalIds.add(newTerminalInfo.id)
 		console.log(`[StandaloneTerminalManager] Created new terminal ${newTerminalInfo.id}`)
