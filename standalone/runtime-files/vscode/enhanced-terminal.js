@@ -3,6 +3,13 @@ const { EventEmitter } = require("events")
 const _path = require("path")
 const _os = require("os")
 
+// Basic ANSI sequence matcher so we can strip color codes before sending output to the UI
+const ANSI_ESCAPE_REGEX = /[\u001B\u009B][[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]/g
+
+function stripAnsiSequences(text = "") {
+	return text.replace(ANSI_ESCAPE_REGEX, "")
+}
+
 // Enhanced terminal management for standalone Cline
 // This replaces VSCode's terminal integration with real subprocess management
 
@@ -44,7 +51,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 			// Handle stdout
 			this.childProcess.stdout.on("data", (data) => {
-				const output = data.toString()
+				const output = this.sanitizeOutput(data)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "") // Signal start of output
@@ -54,7 +61,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 			// Handle stderr
 			this.childProcess.stderr.on("data", (data) => {
-				const output = data.toString()
+				const output = this.sanitizeOutput(data)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "")
@@ -92,6 +99,17 @@ class StandaloneTerminalProcess extends EventEmitter {
 			console.error(`[StandaloneTerminal] Failed to spawn process:`, error)
 			this.emit("error", error)
 		}
+	}
+
+	sanitizeOutput(chunk) {
+		if (!chunk) {
+			return ""
+		}
+		const text = typeof chunk === "string" ? chunk : chunk.toString()
+		if (process.platform !== "win32") {
+			return text
+		}
+		return stripAnsiSequences(text)
 	}
 
 	handleOutput(data, _didEmitEmptyLine) {
